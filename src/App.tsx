@@ -9,7 +9,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import CloudQueueIcon from "@mui/icons-material/CloudQueue";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useArchive } from "./useArchive";
@@ -30,19 +29,15 @@ function longDate(iso: string): string {
   });
 }
 
-// Frosted-glass floating panel, readable over the white chart.
+// Frosted-glass panel, used only for the provenance tooltip.
 const panelSx = {
-  bgcolor: "rgba(255,255,255,0.78)",
+  bgcolor: "rgba(255,255,255,0.92)",
   backdropFilter: "blur(10px)",
   WebkitBackdropFilter: "blur(10px)",
   border: "1px solid rgba(0,0,0,0.12)",
   borderRadius: 2,
   boxShadow: "0 6px 24px rgba(0,0,0,0.10)",
 } as const;
-
-function Overlay({ children, sx }: { children: ReactNode; sx?: object }) {
-  return <Box sx={{ position: "absolute", zIndex: 10, ...sx }}>{children}</Box>;
-}
 
 function StatusOverlay({ children }: { children: ReactNode }) {
   return (
@@ -53,7 +48,6 @@ function StatusOverlay({ children }: { children: ReactNode }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        zIndex: 5,
       }}
     >
       <Box sx={{ ...panelSx, px: 4, py: 3, textAlign: "center", maxWidth: 360 }}>
@@ -84,15 +78,15 @@ export default function App() {
   const dates = arch.data?.dates ?? [];
   const total = dates.length;
 
-  // `index === -1` means "stick to the most recent frame"; it stays pinned to
-  // the latest until the user scrubs, then becomes an explicit position.
+  // `rawIndex === -1` means "stick to the most recent frame" until the user
+  // scrubs, then it becomes an explicit position.
   const [rawIndex, setRawIndex] = useState(-1);
   const [playing, setPlaying] = useState(false);
   const index =
     rawIndex < 0 ? Math.max(total - 1, 0) : Math.min(rawIndex, total - 1);
   const date = dates[index];
 
-  // Preload the neighbouring frames so scrubbing / playback stays smooth.
+  // Preload neighbouring frames so scrubbing / playback stays smooth.
   useEffect(() => {
     if (!total) return;
     for (let d = -2; d <= 2; d++) {
@@ -115,6 +109,7 @@ export default function App() {
         <InfoRow label="Run" value={`${arch.data.run.slice(0, 2)}:00 UTC`} />
         <InfoRow label="Zone" value="Europe / Atlantique NE" />
         <InfoRow label="Archive" value={`${total} jour${total > 1 ? "s" : ""}`} />
+        {date && <InfoRow label="Carte" value={longDate(date)} />}
       </Stack>
       <Typography
         variant="caption"
@@ -136,118 +131,106 @@ export default function App() {
   const building = arch.status !== "ready";
 
   return (
-    <Box sx={{ position: "fixed", inset: 0, overflow: "hidden", bgcolor: "#fff" }}>
-      {/* Chart image, fitted (contain) on the white "paper". */}
-      {date && (
-        <Box
-          component="img"
-          key={date}
-          src={imageUrl(date)}
-          alt={`Carte de pression de surface du ${longDate(date)} (Met Office)`}
-          sx={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            p: { xs: 1, sm: 2 },
-            boxSizing: "border-box",
-          }}
-        />
-      )}
+    <Box
+      sx={{
+        position: "fixed",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        bgcolor: "#fff",
+      }}
+    >
+      {/* Chart image, fitted (contain) in the space above the timeline. */}
+      <Box sx={{ position: "relative", flex: 1, minHeight: 0 }}>
+        {date && (
+          <Box
+            component="img"
+            key={date}
+            src={imageUrl(date)}
+            alt={`Carte de pression de surface du ${longDate(date)} (Met Office)`}
+            sx={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              p: { xs: 1, sm: 2 },
+              boxSizing: "border-box",
+            }}
+          />
+        )}
 
-      {/* Loading / error / building states */}
-      {building && (
-        <StatusOverlay>
-          {arch.status === "error" ? (
-            <>
-              <Typography color="error">Erreur</Typography>
-              <Typography variant="caption" color="text.secondary">
-                {arch.error}
-              </Typography>
-            </>
-          ) : (
-            <>
-              <CircularProgress size={28} />
-              <Typography sx={{ mt: 2 }} color="text.secondary">
-                Récupération des cartes Met Office…
-              </Typography>
-              <LinearProgress sx={{ mt: 1.5 }} />
-            </>
-          )}
-        </StatusOverlay>
-      )}
-
-      {/* Top-left: title + active date */}
-      <Overlay sx={{ top: 16, left: 16, maxWidth: 320 }}>
-        <Box sx={{ ...panelSx, px: 1.75, py: 1.25 }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-            <CloudQueueIcon sx={{ fontSize: 22, color: "text.primary" }} />
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography
-                sx={{
-                  fontSize: "1.05rem",
-                  fontWeight: 700,
-                  lineHeight: 1.1,
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                Pression de surface
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Met Office · Europe
-              </Typography>
-            </Box>
-            {provenance && (
-              <Tooltip
-                title={provenance}
-                placement="bottom-start"
-                slotProps={{
-                  tooltip: {
-                    sx: {
-                      ...panelSx,
-                      color: "text.primary",
-                      px: 1.75,
-                      py: 1.5,
-                      maxWidth: 340,
-                    },
-                  },
-                }}
-              >
-                <IconButton
-                  size="small"
-                  sx={{ color: "text.secondary" }}
-                  aria-label="Informations sur les données"
-                >
-                  <InfoOutlinedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+        {building && (
+          <StatusOverlay>
+            {arch.status === "error" ? (
+              <>
+                <Typography color="error">Erreur</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {arch.error}
+                </Typography>
+              </>
+            ) : (
+              <>
+                <CircularProgress size={28} />
+                <Typography sx={{ mt: 2 }} color="text.secondary">
+                  Récupération des cartes Met Office…
+                </Typography>
+                <LinearProgress sx={{ mt: 1.5 }} />
+              </>
             )}
-          </Stack>
-          {date && (
-            <>
-              <Divider sx={{ my: 1 }} />
-              <Typography
-                sx={{
-                  fontSize: "1.3rem",
-                  fontWeight: 700,
-                  lineHeight: 1.1,
-                  letterSpacing: "-0.02em",
-                }}
-              >
-                {longDate(date)}
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {arch.data ? `${arch.data.run.slice(0, 2)}:00 UTC · analyse` : "analyse"}
-              </Typography>
-            </>
-          )}
-        </Box>
-      </Overlay>
+          </StatusOverlay>
+        )}
+      </Box>
 
-      {/* Top-right: link to the source */}
-      <Overlay sx={{ top: 16, right: 16 }}>
-        <Box sx={{ ...panelSx, px: 0.5, py: 0.5 }}>
+      {/* Timeline bar, sitting just below the image (no overlap). */}
+      {arch.status === "ready" && total > 0 && (
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{
+            alignItems: "center",
+            flexShrink: 0,
+            px: { xs: 1, sm: 2 },
+            py: 0.75,
+            borderTop: "1px solid",
+            borderColor: "divider",
+            bgcolor: "background.paper",
+          }}
+        >
+          <Box sx={{ flexGrow: 1 }}>
+            <Timeline
+              dates={dates}
+              index={index}
+              playing={playing}
+              onIndexChange={setRawIndex}
+              onPlayToggle={() => setPlaying((p) => !p)}
+            />
+          </Box>
+          {provenance && (
+            <Tooltip
+              title={provenance}
+              placement="top-end"
+              slotProps={{
+                tooltip: {
+                  sx: {
+                    ...panelSx,
+                    color: "text.primary",
+                    px: 1.75,
+                    py: 1.5,
+                    maxWidth: 340,
+                  },
+                },
+              }}
+            >
+              <IconButton
+                size="small"
+                sx={{ color: "text.secondary" }}
+                aria-label="Informations sur les données"
+              >
+                <InfoOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
           <Tooltip title="Voir sur le site du Met Office">
             <IconButton
               size="small"
@@ -261,22 +244,7 @@ export default function App() {
               <OpenInNewIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-        </Box>
-      </Overlay>
-
-      {/* Bottom: timeline scrubber */}
-      {arch.status === "ready" && total > 0 && (
-        <Overlay sx={{ bottom: 16, left: 16, right: 16 }}>
-          <Box sx={{ ...panelSx, px: 1.5, py: 1 }}>
-            <Timeline
-              dates={dates}
-              index={index}
-              playing={playing}
-              onIndexChange={setRawIndex}
-              onPlayToggle={() => setPlaying((p) => !p)}
-            />
-          </Box>
-        </Overlay>
+        </Stack>
       )}
     </Box>
   );
