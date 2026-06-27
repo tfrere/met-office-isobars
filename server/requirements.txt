@@ -1,0 +1,5 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+httpx==0.28.1
+# Persist the daily charts to a Hugging Face dataset (archive grows over time).
+huggingface_hub>=0.25,<2.0
