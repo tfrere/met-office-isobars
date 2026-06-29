@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   server: {
+    port: 5175, // reserved dev port (unique per project)
     // In dev, proxy API calls to the FastAPI backend (python server/app.py).
     // Override the target with VITE_API_PROXY when running on another port.
     proxy: {

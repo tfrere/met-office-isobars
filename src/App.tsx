@@ -14,6 +14,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { useArchive } from "./useArchive";
 import { imageUrl } from "./api";
 import Timeline from "./Timeline";
+import ZoomableImage from "./ZoomableImage";
 
 const MET_OFFICE_URL =
   "https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure";
@@ -140,23 +141,13 @@ export default function App() {
         bgcolor: "#fff",
       }}
     >
-      {/* Chart image, fitted (contain) in the space above the timeline. */}
+      {/* Chart image, fitted (contain) in the space above the timeline.
+          Pinch / drag / double-tap to zoom and pan (mobile-friendly). */}
       <Box sx={{ position: "relative", flex: 1, minHeight: 0 }}>
         {date && (
-          <Box
-            component="img"
-            key={date}
+          <ZoomableImage
             src={imageUrl(date)}
             alt={`Carte de pression de surface du ${longDate(date)} (Met Office)`}
-            sx={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              p: { xs: 1, sm: 2 },
-              boxSizing: "border-box",
-            }}
           />
         )}
 
