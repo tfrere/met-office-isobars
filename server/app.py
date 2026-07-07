@@ -31,6 +31,17 @@ async def image(date: str) -> FileResponse:
     return FileResponse(path, media_type="image/gif")
 
 
+@app.get("/api/image/{date}.webp")
+async def image_webp(date: str) -> FileResponse:
+    # Lighter transcode served to the timeline; falls back to the GIF if the
+    # WebP conversion is unavailable.
+    path = archive.webp_path(date) or archive.image_path(date)
+    if path is None:
+        raise HTTPException(status_code=404, detail="chart not found")
+    media = "image/webp" if path.suffix == ".webp" else "image/gif"
+    return FileResponse(path, media_type=media)
+
+
 @app.get("/api/health")
 async def health() -> dict:
     return {"status": "ok"}

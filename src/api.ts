@@ -25,7 +25,8 @@ export interface ArchivePending {
 
 export type ArchiveResponse = ArchiveReady | ArchivePending;
 
-// URL of the (locally mirrored) chart image for a given date.
+// URL of the chart image for a given date. Served as WebP (transcoded from the
+// archived GIF) to keep the timeline light to scrub and play.
 export function imageUrl(date: string): string {
-  return `${API_BASE}/api/image/${date}.gif`;
+  return `${API_BASE}/api/image/${date}.webp`;
 }

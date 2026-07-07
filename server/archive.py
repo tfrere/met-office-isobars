@@ -54,6 +54,12 @@ DATA_DIR = Path(os.environ.get("ARCHIVE_DATA_DIR", str(Path(__file__).parent / "
 IMAGES_DIR = DATA_DIR / "images"
 MANIFEST_PATH = DATA_DIR / "manifest.json"
 
+# The dataset stores the original GIFs (source of truth); we transcode them to
+# WebP lazily so the timeline stays light to scrub and play. Cache lives outside
+# the dataset mirror and is never pushed. Quality is tunable via env.
+WEBP_CACHE_DIR = DATA_DIR / "_webp_cache"
+WEBP_QUALITY = int(os.environ.get("MET_OFFICE_WEBP_QUALITY", "50"))
+
 # --- Module state shared with the API layer ---------------------------------
 
 _state: dict = {"status": "idle", "error": None}
@@ -288,3 +294,27 @@ def image_path(date: str) -> Path | None:
         return None
     path = IMAGES_DIR / f"{date}.gif"
     return path if path.is_file() else None
+
+
+def webp_path(date: str) -> Path | None:
+    """WebP-encoded copy of the chart, transcoded from the source GIF on demand
+    and cached on disk. Returns None if the source is missing or Pillow fails
+    (the caller can then fall back to the GIF endpoint)."""
+    src = image_path(date)
+    if src is None:
+        return None
+    out = WEBP_CACHE_DIR / f"{date}.webp"
+    if out.is_file() and out.stat().st_mtime >= src.stat().st_mtime:
+        return out
+    try:
+        from PIL import Image
+
+        WEBP_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        with Image.open(src) as im:
+            im.convert("RGB").save(
+                out, "WEBP", quality=WEBP_QUALITY, method=6
+            )
+        return out
+    except Exception as exc:  # noqa: BLE001
+        print(f"[archive] webp transcode failed for {date}: {exc}")
+        return None
