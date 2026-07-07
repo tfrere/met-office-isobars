@@ -1,0 +1,30 @@
+name: Deploy to Hugging Face Space
+
+# GitHub is the source of truth: every push to main is mirrored to the HF Space
+# git repo, which triggers a rebuild. The push targets huggingface.co (not
+# GitHub), so it never re-triggers this workflow.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-space
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git push --force \
+            "https://tfrere:${HF_TOKEN}@huggingface.co/spaces/tfrere/met-office-isobars" \
+            HEAD:main

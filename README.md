@@ -94,13 +94,23 @@ docker run -p 7860:7860 -e HF_TOKEN=hf_xxx met-office-isobars
 # -> http://localhost:7860
 ```
 
-## Déploiement sur Hugging Face Spaces
+## CI/CD (GitHub → Hugging Face)
+
+Le dépôt [`tfrere/met-office-isobars`](https://github.com/tfrere/met-office-isobars)
+sur GitHub est la source de vérité. Deux workflows GitHub Actions :
+
+| Workflow | Déclencheur | Rôle |
+| --- | --- | --- |
+| `.github/workflows/deploy.yml` | push sur `main` | Mirror vers le Space HF → rebuild Docker. |
+| `.github/workflows/ingest.yml` | cron quotidien (~20:17 UTC) + manuel | Récupère la carte du jour et la commit dans le dataset, **indépendamment du Space**. |
+
+Il suffit donc de :
 
 ```bash
-git init && git add . && git commit -m "feat: met office surface pressure archive"
-git remote add space git@hf.co:spaces/tfrere/met-office-isobars
-git push space main
+git push origin main   # -> déploie sur le Space automatiquement
 ```
 
+Prérequis : le secret `HF_TOKEN` (write) doit être configuré dans les *Settings →
+Secrets* du repo GitHub **et** dans ceux du Space (pour l'archivage côté Space).
+
 Le Space détecte le `Dockerfile` (SDK `docker`) et publie sur le port `7860`.
-Pense à ajouter le secret `HF_TOKEN` (write) pour activer l'archivage dataset.
