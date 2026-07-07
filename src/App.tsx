@@ -5,6 +5,7 @@ import {
   Divider,
   IconButton,
   LinearProgress,
+  Link,
   Stack,
   Tooltip,
   Typography,
@@ -18,6 +19,9 @@ import ZoomableImage from "./ZoomableImage";
 
 const MET_OFFICE_URL =
   "https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure";
+// Met Office guide explaining the chart symbols (fronts, isobars, H/L, trough).
+const MET_OFFICE_LEGEND_URL =
+  "https://weather.metoffice.gov.uk/guides/what-does-this-forecast-mean#pressure-symbols";
 
 // "2026-06-27" -> "27 juin 2026"
 function longDate(iso: string): string {
@@ -151,7 +155,21 @@ export default function App() {
         archive grandit ensuite jour après jour.
       </Typography>
       <Divider sx={{ my: 1 }} />
-      <Typography variant="caption" color="text.secondary">
+      <Link
+        href={MET_OFFICE_LEGEND_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        variant="caption"
+        sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
+      >
+        Légende des symboles (fronts, isobares, H/L…)
+        <OpenInNewIcon sx={{ fontSize: 12 }} />
+      </Link>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: "block", mt: 0.75 }}
+      >
         © Crown copyright, Met Office
       </Typography>
     </Box>
