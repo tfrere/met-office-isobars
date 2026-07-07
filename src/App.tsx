@@ -74,10 +74,22 @@ function InfoRow({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+// Minimum time the intro spinner stays up, even when the archive is already
+// cached, so the app never flashes a half-painted UI on load.
+const MIN_SPLASH_MS = 1500;
+
 export default function App() {
   const arch = useArchive();
   const dates = arch.data?.dates ?? [];
   const total = dates.length;
+
+  // Gate the UI behind both "data ready" and a short minimum splash delay.
+  const [minElapsed, setMinElapsed] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMinElapsed(true), MIN_SPLASH_MS);
+    return () => clearTimeout(t);
+  }, []);
+  const ready = arch.status === "ready" && total > 0 && minElapsed;
 
   // `rawIndex === -1` means "stick to the most recent frame" until the user
   // scrubs, then it becomes an explicit position.
@@ -145,8 +157,6 @@ export default function App() {
     </Box>
   ) : null;
 
-  const building = arch.status !== "ready";
-
   return (
     <Box
       sx={{
@@ -160,14 +170,14 @@ export default function App() {
       {/* Chart image, fitted (contain) in the space above the timeline.
           Pinch / drag / double-tap to zoom and pan (mobile-friendly). */}
       <Box sx={{ position: "relative", flex: 1, minHeight: 0 }}>
-        {date && (
+        {ready && date && (
           <ZoomableImage
             src={imageUrl(date)}
             alt={`Carte de pression de surface du ${longDate(date)} (Met Office)`}
           />
         )}
 
-        {building && (
+        {!ready && (
           <StatusOverlay>
             {arch.status === "error" ? (
               <>
@@ -190,7 +200,7 @@ export default function App() {
       </Box>
 
       {/* Timeline bar, sitting just below the image (no overlap). */}
-      {arch.status === "ready" && total > 0 && (
+      {ready && (
         <Stack
           direction="row"
           spacing={1}
