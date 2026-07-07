@@ -1,0 +1,46 @@
+name: Ingest Met Office chart
+
+# Keeps the dataset archive growing independently of the Space (which sleeps
+# after inactivity on free hardware). Fetches the daily analysis chart and
+# commits it to the Hugging Face dataset.
+
+on:
+  schedule:
+    # ~20:17 UTC daily: after the 12:00 UTC run publishes (~19:30). An odd
+    # minute avoids the top-of-hour scheduling drift GitHub is prone to. A
+    # missed run self-heals the next day (the backfill window covers 8 days).
+    - cron: "17 20 * * *"
+  # Manual trigger + lets you re-enable the schedule after the 60-day
+  # inactivity auto-disable with a single click.
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ingest-met-office
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install "httpx==0.28.1" "huggingface_hub>=0.25,<2.0"
+
+      - name: Ingest today's chart
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          MET_OFFICE_DATASET: tfrere/met-office-isobars-archive
+        run: python server/ingest.py
+
+      # Prevents GitHub from silently disabling this cron after 60 days with no
+      # repo activity (the dataset commits don't count as repo activity).
+      - name: Keep workflow alive
+        uses: gautamkrishnar/keepalive-workflow@v2

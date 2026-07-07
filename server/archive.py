@@ -249,6 +249,21 @@ def start() -> None:
     _task = asyncio.create_task(_runner())
 
 
+async def run_once() -> dict:
+    """One-shot ingestion for an external scheduler (see ``ingest.py``).
+
+    Pulls the existing archive from the dataset, fetches any missing recent
+    charts, and pushes the new ones back. Returns the resulting manifest.
+    """
+    global _manifest
+    if HF_TOKEN:
+        await asyncio.to_thread(_ensure_repo)
+        await asyncio.to_thread(_sync_from_dataset)
+    _manifest = _load_manifest()
+    await ingest_once()
+    return _manifest or _load_manifest()
+
+
 # --- API surface -------------------------------------------------------------
 
 
