@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Box, IconButton, Slider, Stack, useMediaQuery, useTheme } from "@mui/material";
+import { scaleUtc } from "d3-scale";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -16,8 +17,6 @@ interface Props {
 
 // Daily charts: a slower frame rate than a smooth animation reads better.
 const FRAME_MS = 650;
-// Above this many frames we label whole months instead of individual days.
-const MONTH_LABEL_THRESHOLD = 40;
 
 export default function Timeline({
   dates,
@@ -52,43 +51,46 @@ export default function Timeline({
     return () => clearTimeout(id);
   }, [playing, index, last, total, onIndexChange, onStop]);
 
-  // Adaptive tick marks: month boundaries for long archives, otherwise a few
-  // evenly spaced day labels. On phones we halve the label density (and use
-  // day-only labels) so the ticks never overlap.
-  const marks: { value: number; label?: string }[] = [];
-  if (total > MONTH_LABEL_THRESHOLD) {
-    let lastMonth = "";
-    let monthIdx = 0;
-    for (let i = 0; i < total; i++) {
-      const m = dates[i].slice(0, 7);
-      if (m !== lastMonth) {
-        lastMonth = m;
-        const showLabel = !compact || monthIdx % 2 === 0;
-        marks.push({
-          value: i,
-          label: showLabel
-            ? new Date(`${dates[i]}T12:00:00Z`).toLocaleDateString("fr-FR", {
-                month: "short",
-              })
-            : undefined,
-        });
-        monthIdx++;
-      }
-    }
-  } else if (total > 1) {
-    const everyN = Math.max(1, Math.ceil(total / (compact ? 4 : 8)));
-    for (let i = 0; i < total; i++) {
-      if (i % everyN === 0 || i === last) {
-        marks.push({
-          value: i,
-          label: new Date(`${dates[i]}T12:00:00Z`).toLocaleDateString("fr-FR", {
+  // Tick marks driven by a D3 UTC time scale: d3 picks "nice", evenly spaced
+  // tick dates (days / weeks / months as the archive grows), which reads far
+  // better than a fixed every-N stride. Each tick is snapped to its nearest
+  // frame index; labels are month names on month boundaries, day numbers
+  // otherwise, and thinned on phones.
+  const marks = useMemo(() => {
+    if (total <= 1) return [] as { value: number; label?: string }[];
+    const times = dates.map((d) => new Date(`${d}T12:00:00Z`).getTime());
+    const ticks = scaleUtc()
+      .domain([times[0], times[last]])
+      .ticks(compact ? 4 : 8);
+    const fmt = (t: Date) =>
+      t.getUTCDate() === 1
+        ? t.toLocaleDateString("fr-FR", { month: "short", timeZone: "UTC" })
+        : t.toLocaleDateString("fr-FR", {
             day: "2-digit",
             ...(compact ? {} : { month: "2-digit" }),
-          }),
-        });
+            timeZone: "UTC",
+          });
+    const seen = new Set<number>();
+    const out: { value: number; label?: string }[] = [];
+    for (const t of ticks) {
+      const tt = t.getTime();
+      // Nearest frame index (dates may have gaps, so snap by time, not stride).
+      let lo = 0;
+      let hi = last;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (times[mid] < tt) lo = mid + 1;
+        else hi = mid;
+      }
+      let i = lo;
+      if (i > 0 && Math.abs(times[i - 1] - tt) < Math.abs(times[i] - tt)) i -= 1;
+      if (!seen.has(i)) {
+        seen.add(i);
+        out.push({ value: i, label: fmt(t) });
       }
     }
-  }
+    return out;
+  }, [dates, total, last, compact]);
 
   return (
     <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
