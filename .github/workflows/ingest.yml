@@ -39,8 +39,3 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           MET_OFFICE_DATASET: tfrere/met-office-isobars-archive
         run: python server/ingest.py
-
-      # Prevents GitHub from silently disabling this cron after 60 days with no
-      # repo activity (the dataset commits don't count as repo activity).
-      - name: Keep workflow alive
-        uses: gautamkrishnar/keepalive-workflow@v2
