@@ -25,6 +25,8 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git push --force \
-            "https://tfrere:${HF_TOKEN}@huggingface.co/spaces/tfrere/met-office-isobars" \
+          echo "token length: ${#HF_TOKEN}"
+          git -c http.extraheader="Authorization: Bearer ${HF_TOKEN}" \
+            push --force \
+            "https://huggingface.co/spaces/tfrere/met-office-isobars" \
             HEAD:main
