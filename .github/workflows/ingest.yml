@@ -3,6 +3,10 @@ name: Ingest Met Office chart
 # Keeps the dataset archive growing independently of the Space (which sleeps
 # after inactivity on free hardware). Fetches the daily analysis chart and
 # commits it to the Hugging Face dataset.
+#
+# A monthly empty keepalive commit prevents GitHub from auto-disabling this
+# scheduled workflow after 60 days without repository activity (ingest commits
+# land in the HF dataset, not this repo, so the repo would otherwise go idle).
 
 on:
   schedule:
@@ -10,8 +14,7 @@ on:
     # minute avoids the top-of-hour scheduling drift GitHub is prone to. A
     # missed run self-heals the next day (the backfill window covers 8 days).
     - cron: "17 20 * * *"
-  # Manual trigger + lets you re-enable the schedule after the 60-day
-  # inactivity auto-disable with a single click.
+  # Manual trigger (safety fallback to re-run / re-enable the schedule by hand).
   workflow_dispatch: {}
 
 permissions:
@@ -39,3 +42,20 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           MET_OFFICE_DATASET: tfrere/met-office-isobars-archive
         run: python server/ingest.py
+
+      # Reset GitHub's 60-day inactivity timer so the daily schedule never gets
+      # auto-disabled. Once a month is plenty (window is 60 days). Uses the
+      # built-in GITHUB_TOKEN and [skip ci] so it never triggers the deploy
+      # workflow. Never fails the run.
+      - name: Keepalive (prevent scheduled-workflow auto-disable)
+        if: ${{ always() }}
+        continue-on-error: true
+        run: |
+          if [ "$(date -u +%d)" != "01" ]; then
+            echo "Not the 1st of the month (UTC) - keepalive commit skipped."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "chore: keepalive to keep the daily ingest cron enabled [skip ci]"
+          git push
