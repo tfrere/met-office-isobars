@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Box, IconButton, Slider, Stack } from "@mui/material";
+import { Box, IconButton, Slider, Stack, useMediaQuery, useTheme } from "@mui/material";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import PauseIcon from "@mui/icons-material/Pause";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -11,6 +11,7 @@ interface Props {
   playing: boolean;
   onIndexChange: (i: number) => void;
   onPlayToggle: () => void;
+  onStop: () => void;
 }
 
 // Daily charts: a slower frame rate than a smooth animation reads better.
@@ -24,45 +25,65 @@ export default function Timeline({
   playing,
   onIndexChange,
   onPlayToggle,
+  onStop,
 }: Props) {
+  const theme = useTheme();
+  const compact = useMediaQuery(theme.breakpoints.down("sm"));
   const total = dates.length;
   const last = Math.max(total - 1, 0);
 
+  // Playback runs through the archive exactly once, then stops. Starting from
+  // the last frame rewinds to the beginning so a fresh press always replays.
   useEffect(() => {
     if (!playing || total <= 1) return;
-    const id = setInterval(() => {
-      // Loop back to the start after the most recent frame.
-      onIndexChange(index >= last ? 0 : index + 1);
+    if (index >= last) {
+      onIndexChange(0);
+      return;
+    }
+    const id = setTimeout(() => {
+      const next = index + 1;
+      if (next >= last) {
+        onIndexChange(last);
+        onStop();
+      } else {
+        onIndexChange(next);
+      }
     }, FRAME_MS);
-    return () => clearInterval(id);
-  }, [playing, index, last, total, onIndexChange]);
+    return () => clearTimeout(id);
+  }, [playing, index, last, total, onIndexChange, onStop]);
 
   // Adaptive tick marks: month boundaries for long archives, otherwise a few
-  // evenly spaced day labels.
+  // evenly spaced day labels. On phones we halve the label density (and use
+  // day-only labels) so the ticks never overlap.
   const marks: { value: number; label?: string }[] = [];
   if (total > MONTH_LABEL_THRESHOLD) {
     let lastMonth = "";
+    let monthIdx = 0;
     for (let i = 0; i < total; i++) {
       const m = dates[i].slice(0, 7);
       if (m !== lastMonth) {
         lastMonth = m;
+        const showLabel = !compact || monthIdx % 2 === 0;
         marks.push({
           value: i,
-          label: new Date(`${dates[i]}T12:00:00Z`).toLocaleDateString("fr-FR", {
-            month: "short",
-          }),
+          label: showLabel
+            ? new Date(`${dates[i]}T12:00:00Z`).toLocaleDateString("fr-FR", {
+                month: "short",
+              })
+            : undefined,
         });
+        monthIdx++;
       }
     }
   } else if (total > 1) {
-    const everyN = Math.max(1, Math.ceil(total / 8));
+    const everyN = Math.max(1, Math.ceil(total / (compact ? 4 : 8)));
     for (let i = 0; i < total; i++) {
       if (i % everyN === 0 || i === last) {
         marks.push({
           value: i,
           label: new Date(`${dates[i]}T12:00:00Z`).toLocaleDateString("fr-FR", {
             day: "2-digit",
-            month: "2-digit",
+            ...(compact ? {} : { month: "2-digit" }),
           }),
         });
       }
@@ -97,6 +118,11 @@ export default function Timeline({
           marks={marks}
           onChange={(_, v) => onIndexChange(v as number)}
           aria-label="Date"
+          sx={{
+            "& .MuiSlider-markLabel": {
+              fontSize: compact ? "0.6rem" : "0.7rem",
+            },
+          }}
         />
       </Box>
       <IconButton

@@ -99,6 +99,22 @@ export default function App() {
     }
   }, [index, total, dates]);
 
+  // Space bar toggles playback of the timeline. Ignored when a form control is
+  // focused (avoids double-firing with a button / hijacking typing), and
+  // preventDefault stops the page from scrolling.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Space" && e.key !== " ") return;
+      if (arch.status !== "ready" || total <= 1) return;
+      const tag = (document.activeElement?.tagName ?? "").toUpperCase();
+      if (["INPUT", "TEXTAREA", "BUTTON", "SELECT"].includes(tag)) return;
+      e.preventDefault();
+      setPlaying((p) => !p);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [arch.status, total]);
+
   const provenance = arch.data ? (
     <Box sx={{ minWidth: 252 }}>
       <Typography sx={{ fontSize: "0.8rem", fontWeight: 700, mb: 0.75 }}>
@@ -195,6 +211,7 @@ export default function App() {
               playing={playing}
               onIndexChange={setRawIndex}
               onPlayToggle={() => setPlaying((p) => !p)}
+              onStop={() => setPlaying(false)}
             />
           </Box>
           {provenance && (
