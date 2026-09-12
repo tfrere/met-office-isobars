@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Box,
   CircularProgress,
@@ -22,6 +22,8 @@ const MET_OFFICE_URL =
 // Met Office guide explaining the chart symbols (fronts, isobars, H/L, trough).
 const MET_OFFICE_LEGEND_URL =
   "https://weather.metoffice.gov.uk/guides/what-does-this-forecast-mean#pressure-symbols";
+// The git repo is the archive (charts committed daily by GitHub Actions).
+const REPO_URL = "https://github.com/tfrere/met-office-isobars";
 
 // "2026-06-27" -> "27 juin 2026"
 function longDate(iso: string): string {
@@ -84,7 +86,8 @@ const MIN_SPLASH_MS = 1500;
 
 export default function App() {
   const arch = useArchive();
-  const dates = arch.data?.dates ?? [];
+  const frames = arch.data?.frames;
+  const dates = useMemo(() => frames?.map((f) => f.date) ?? [], [frames]);
   const total = dates.length;
 
   // Gate the UI behind both "data ready" and a short minimum splash delay.
@@ -150,9 +153,12 @@ export default function App() {
         sx={{ display: "block", mt: 0.75, lineHeight: 1.4 }}
       >
         Images officielles du Met Office récupérées chaque jour et archivées au
-        fil de l'eau{arch.data.dataset ? ` dans le dataset ${arch.data.dataset}` : ""}.
-        Le Met Office ne conserve en ligne que les ~7 derniers jours&nbsp;; cette
-        archive grandit ensuite jour après jour.
+        fil de l'eau dans le{" "}
+        <Link href={REPO_URL} target="_blank" rel="noopener noreferrer">
+          dépôt GitHub
+        </Link>
+        . Le Met Office ne conserve en ligne que les ~7 derniers jours&nbsp;;
+        cette archive grandit ensuite jour après jour.
       </Typography>
       <Divider sx={{ my: 1 }} />
       <Link
@@ -208,7 +214,7 @@ export default function App() {
               <>
                 <CircularProgress size={28} />
                 <Typography sx={{ mt: 2 }} color="text.secondary">
-                  Récupération des cartes Met Office…
+                  Chargement des cartes Met Office…
                 </Typography>
                 <LinearProgress sx={{ mt: 1.5 }} />
               </>

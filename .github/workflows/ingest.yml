@@ -1,12 +1,12 @@
 name: Ingest Met Office chart
 
-# Keeps the dataset archive growing independently of the Space (which sleeps
-# after inactivity on free hardware). Fetches the daily analysis chart and
-# commits it to the Hugging Face dataset.
+# Daily archive job. Fetches the Met Office surface-pressure analysis chart,
+# transcodes it to WebP, commits it to this repo (the repo *is* the archive)
+# and redeploys the GitHub Pages site.
 #
-# A monthly empty keepalive commit prevents GitHub from auto-disabling this
-# scheduled workflow after 60 days without repository activity (ingest commits
-# land in the HF dataset, not this repo, so the repo would otherwise go idle).
+# Authentication uses the built-in GITHUB_TOKEN only: nothing to create,
+# rotate or store. Because the job commits to the repo every day, GitHub's
+# 60-day inactivity auto-disable of scheduled workflows never kicks in.
 
 on:
   schedule:
@@ -14,11 +14,8 @@ on:
     # minute avoids the top-of-hour scheduling drift GitHub is prone to. A
     # missed run self-heals the next day (the backfill window covers 8 days).
     - cron: "17 20 * * *"
-  # Manual trigger (safety fallback to re-run / re-enable the schedule by hand).
+  # Manual trigger (re-run / backfill by hand).
   workflow_dispatch: {}
-
-permissions:
-  contents: write
 
 concurrency:
   group: ingest-met-office
@@ -27,6 +24,10 @@ concurrency:
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.ingest.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,27 +36,32 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install "httpx==0.28.1" "huggingface_hub>=0.25,<2.0"
+        run: pip install "pillow>=10,<13"
 
-      - name: Ingest today's chart
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          MET_OFFICE_DATASET: tfrere/met-office-isobars-archive
-        run: python server/ingest.py
-
-      # Reset GitHub's 60-day inactivity timer so the daily schedule never gets
-      # auto-disabled. Once a month is plenty (window is 60 days). Uses the
-      # built-in GITHUB_TOKEN and [skip ci] so it never triggers the deploy
-      # workflow. Never fails the run.
-      - name: Keepalive (prevent scheduled-workflow auto-disable)
-        if: ${{ always() }}
-        continue-on-error: true
+      - name: Fetch today's chart
+        id: ingest
+        shell: bash # explicit -> pipefail, so a script failure is not masked by tee
         run: |
-          if [ "$(date -u +%d)" != "01" ]; then
-            echo "Not the 1st of the month (UTC) - keepalive commit skipped."
-            exit 0
-          fi
+          python scripts/ingest.py | tee ingest.log
+          echo "changed=$(grep -o 'changed=[a-z]*' ingest.log | tail -1 | cut -d= -f2)" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push new charts
+        if: steps.ingest.outputs.changed == 'true'
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit --allow-empty -m "chore: keepalive to keep the daily ingest cron enabled [skip ci]"
-          git push
+          git add sources public/data
+          latest=$(python -c "import json; f=json.load(open('public/data/manifest.json'))['frames']; print(f[-1]['date'] if f else 'none')")
+          git commit -m "data: add Met Office chart ${latest}"
+          # Tolerate a concurrent push (e.g. a manual commit landing meanwhile).
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+  deploy:
+    needs: ingest
+    if: needs.ingest.outputs.changed == 'true'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

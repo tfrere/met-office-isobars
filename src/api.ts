@@ -1,32 +1,39 @@
-// Shared types + helpers for talking to the FastAPI backend.
+// Shared types + helpers for the static archive served next to the app.
+//
+// There is no backend: `scripts/ingest.py` (run daily by GitHub Actions)
+// writes `public/data/manifest.json` + `public/data/webp/<date>.webp`, which
+// Vite copies verbatim into the build and GitHub Pages serves as static files.
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+// Vite's BASE_URL always ends with "/" ("/" locally, "/<repo>/" on Pages).
+const DATA_BASE = `${import.meta.env.BASE_URL}data`;
 
-export interface ArchiveReady {
-  status: "ready";
+export interface ManifestFrame {
+  // ISO date (YYYY-MM-DD) of the analysis chart.
+  date: string;
+  // Met Office model run the chart comes from ("1200" or "0000").
+  run: string;
+}
+
+export interface Manifest {
   // Human-readable provenance string shown in the info tooltip.
   source: string;
   // "bw" (the only variant we archive for now).
   variant: string;
-  // Dataset repo id the archive is persisted to (null if persistence is off).
-  dataset: string | null;
-  // Met Office model run the analysis charts come from ("1200" or "0000").
+  // Run of the most recent frame.
   run: string;
-  // Available chart dates, ISO (YYYY-MM-DD), sorted oldest -> newest.
-  dates: string[];
+  // Available frames, sorted oldest -> newest.
+  frames: ManifestFrame[];
   // ISO timestamp of the last successful ingestion.
   updatedAt: string;
 }
 
-export interface ArchivePending {
-  status: "idle" | "building" | "error";
-  error: string | null;
+export function manifestUrl(): string {
+  // Cache-bust so a long-lived tab picks up the new day's chart; Pages sets
+  // a 10-minute max-age on everything otherwise.
+  return `${DATA_BASE}/manifest.json?t=${Date.now()}`;
 }
 
-export type ArchiveResponse = ArchiveReady | ArchivePending;
-
-// URL of the chart image for a given date. Served as WebP (transcoded from the
-// archived GIF) to keep the timeline light to scrub and play.
+// URL of the WebP chart for a given date.
 export function imageUrl(date: string): string {
-  return `${API_BASE}/api/image/${date}.webp`;
+  return `${DATA_BASE}/webp/${date}.webp`;
 }

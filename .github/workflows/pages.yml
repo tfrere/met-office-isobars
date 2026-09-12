@@ -1,0 +1,67 @@
+name: Deploy to GitHub Pages
+
+# Builds the Vite frontend (which bundles public/data: manifest + WebP charts)
+# and publishes it to GitHub Pages.
+#
+# Triggered by pushes to main, by hand, and by the daily ingest workflow via
+# `workflow_call` (commits pushed with GITHUB_TOKEN do not fire `push` events,
+# so the ingest job has to call this one explicitly).
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "sources/**"
+      - "README.md"
+  workflow_dispatch: {}
+  workflow_call: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Always build the tip of main, not the SHA that started the run:
+          # when called from the ingest workflow, the new charts were pushed
+          # *after* that run was triggered.
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        # `npm install` (not `npm ci`) so platform-specific optional deps
+        # resolve on the Linux runner regardless of where the lockfile was made.
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        # Site is served from https://<user>.github.io/<repo>/ ; derive the
+        # base path from GITHUB_REPOSITORY ("owner/repo") since `github.event`
+        # has no repository payload on schedule-triggered calls.
+        run: VITE_BASE="/${GITHUB_REPOSITORY#*/}/" npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

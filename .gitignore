@@ -12,16 +12,10 @@ dist
 dist-ssr
 *.local
 
-# Python backend
+# Python (ingest script)
 .venv
 __pycache__/
 *.pyc
-
-# Local prod build output served by FastAPI
-server/static
-
-# Local mirror of the Hugging Face dataset archive (re-synced on startup)
-server/data
 
 # Editor directories and files
 .vscode/*

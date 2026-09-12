@@ -1,22 +1,21 @@
 import { useEffect, useState } from "react";
-import { API_BASE, type ArchiveReady, type ArchiveResponse } from "./api";
+import { manifestUrl, type Manifest } from "./api";
 
-interface State {
-  data: ArchiveReady | null;
-  status: ArchiveResponse["status"];
+export interface ArchiveState {
+  data: Manifest | null;
+  status: "loading" | "ready" | "error";
   error: string | null;
 }
 
-// While the archive is empty/syncing the backend returns
-// `{ status: "building" }`; we poll until it is "ready", then refresh slowly to
-// pick up the new day as the daily ingestion adds frames.
-const POLL_BUILDING_MS = 3000;
-const POLL_READY_MS = 10 * 60 * 1000;
+// Re-fetch the manifest every 10 minutes so a tab left open picks up the new
+// day's chart once the daily ingestion has redeployed the site.
+const REFRESH_MS = 10 * 60 * 1000;
+const RETRY_MS = 5000;
 
-export function useArchive(): State {
-  const [state, setState] = useState<State>({
+export function useArchive(): ArchiveState {
+  const [state, setState] = useState<ArchiveState>({
     data: null,
-    status: "idle",
+    status: "loading",
     error: null,
   });
 
@@ -25,24 +24,25 @@ export function useArchive(): State {
     let timer: ReturnType<typeof setTimeout>;
 
     const poll = async () => {
-      let nextDelay = POLL_BUILDING_MS;
+      let nextDelay = REFRESH_MS;
       try {
-        const res = await fetch(`${API_BASE}/api/frames`);
-        const json = (await res.json()) as ArchiveResponse;
+        const res = await fetch(manifestUrl(), { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as Manifest;
         if (!alive) return;
-        if (json.status === "ready") {
-          setState({ data: json, status: "ready", error: null });
-          nextDelay = POLL_READY_MS;
-        } else {
-          setState({
-            data: null,
-            status: json.status,
-            error: json.error ?? null,
-          });
+        if (!Array.isArray(json.frames) || json.frames.length === 0) {
+          throw new Error("archive is empty");
         }
-      } catch {
+        setState({ data: json, status: "ready", error: null });
+      } catch (err) {
         if (!alive) return;
-        setState((s) => ({ ...s, status: s.data ? "ready" : "building" }));
+        // Keep showing the last good manifest if we already have one.
+        setState((s) =>
+          s.data
+            ? s
+            : { data: null, status: "error", error: String(err) },
+        );
+        nextDelay = RETRY_MS;
       }
       timer = setTimeout(poll, nextDelay);
     };
